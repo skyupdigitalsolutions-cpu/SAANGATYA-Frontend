@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import saangatyaLogo from "../assets/image1.png";
+import headerLogo from "../assets/image2.png";
 import { useFormik } from "formik";
 import * as Yup from "yup";
 
@@ -50,21 +51,26 @@ const logout = async () => {
 // ─── REAL BACKEND API ──────────────────────────────────────────────────────
 const API_BASE = "";
 
-async function fetchEmployee(id) {
+async function fetchEmployee(id, retries = 3, delay = 4000) {
   if (!id || id.trim().length < 3) return null;
-  try {
-    const res = await authFetch(
-      `${API_BASE}/api/employees/${id.trim().toUpperCase()}`,
-    );
-    if (!res) return "error"; // network error / no response
-    if (res.status === 404) return null; // genuine not found
-    if (!res.ok) return "error"; // server error
-    const json = await res.json();
-    return json.success ? json.data : null;
-  } catch (err) {
-    console.error("[fetchEmployee]", err);
-    return "error"; // network error (backend sleeping)
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await authFetch(
+        `${API_BASE}/api/employees/${id.trim().toUpperCase()}`,
+      );
+      if (!res) throw new Error("no response");
+      if (res.status === 404) return null; // genuine not found
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const json = await res.json();
+      return json.success ? json.data : null;
+    } catch (err) {
+      console.warn(`[fetchEmployee] attempt ${attempt + 1} failed:`, err.message);
+      if (attempt < retries - 1) {
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
   }
+  return "error"; // all retries exhausted
 }
 
 async function saveEmployee(id, data) {
@@ -102,16 +108,25 @@ async function sendSalaryToBackend(formData, isNewJoinee) {
   return res.json();
 }
 
-async function checkEmployeeExists(id) {
-  try {
-    const res = await authFetch(
-      `${API_BASE}/api/employees/${id.trim().toUpperCase()}`,
-    );
-    if (!res) return "error";
-    return res.ok; // true = exists, false = 404
-  } catch {
-    return "error"; // network error
+async function checkEmployeeExists(id, retries = 3, delay = 4000) {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await authFetch(
+        `${API_BASE}/api/employees/${id.trim().toUpperCase()}`,
+      );
+      if (!res) throw new Error("no response");
+      if (res.status === 404) return false;   // confirmed not found
+      if (!res.ok) throw new Error(`status ${res.status}`);
+      const json = await res.json();
+      return json.success === true;           // only true if employee actually exists
+    } catch (err) {
+      console.warn(`[checkEmployeeExists] attempt ${attempt + 1} failed:`, err.message);
+      if (attempt < retries - 1) {
+        await new Promise((r) => setTimeout(r, delay));
+      }
+    }
   }
+  return "error"; // all retries exhausted
 }
 
 // ─── HELPERS ───────────────────────────────────────────────────────────────
@@ -577,6 +592,12 @@ export default function SalaryFormPage() {
         if (admin) setAdminInfo(admin);
         setAuthChecked(true);
       });
+
+    // Keep Render backend alive — ping every 14 minutes
+    const keepAlive = setInterval(() => {
+      fetch(`${API_BASE}/health`).catch(() => {});
+    }, 14 * 60 * 1000);
+    return () => clearInterval(keepAlive);
   }, []);
 
   const showToast = (msg, type = "success") => {
@@ -1024,8 +1045,8 @@ export default function SalaryFormPage() {
       <div className="no-print bg-white px-4 md:px-8 py-3 flex items-center gap-4 shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-center flex-shrink-0 bg-white">
           <img
-            src="/image1.png"
-            alt="Skyup Logo"
+            src={headerLogo}
+            alt="SAANGATYA Logo"
             className="h-[50px] w-auto object-contain"
           />
         </div>
@@ -1802,29 +1823,11 @@ export default function SalaryFormPage() {
                   </p>
                 )}
                 {fetchStatus === "error" && (
-                  <p className="text-orange-600 text-[10px] sm:text-xs mt-0.5 font-semibold flex items-center gap-1">
-                    ⚠ Server is waking up — &nbsp;
-                    <button
-                      type="button"
-                      className="underline font-bold"
-                      onClick={() => {
-                        const id = formik.values.employeeId?.trim();
-                        if (id && id.length >= 3) {
-                          setFetchStatus("loading");
-                          fetchEmployee(id).then((emp) => {
-                            if (emp === "error") { setFetchStatus("error"); return; }
-                            if (emp) {
-                              Object.entries(emp).forEach(([k, v]) => { formik.setFieldValue(k, v, false); formik.setFieldTouched(k, false, false); });
-                              setFetchStatus("found");
-                            } else {
-                              setFetchStatus("notfound");
-                            }
-                          });
-                        }
-                      }}
-                    >
-                      Retry
-                    </button>
+                  <p className="text-amber-600 text-[10px] sm:text-xs mt-0.5 flex items-center gap-1">
+                    <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
+                    </svg>
+                    Connecting to server…
                   </p>
                 )}
                 {fetchStatus === "found" && !isNewJoinee && !isEditMode && (
