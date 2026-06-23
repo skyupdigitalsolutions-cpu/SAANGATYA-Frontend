@@ -1012,7 +1012,7 @@ export default function SalaryFormPage() {
           <img
             src="/image1.png"
             alt="Skyup Logo"
-            className="h-10 w-auto object-contain"
+            className="h-[50px] w-auto object-contain"
           />
         </div>
         <div className="flex-1" />
