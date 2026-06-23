@@ -49,7 +49,7 @@ const logout = async () => {
 };
 
 // ─── REAL BACKEND API ──────────────────────────────────────────────────────
-const API_BASE = "";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 async function fetchEmployee(id, retries = 3, delay = 4000) {
   if (!id || id.trim().length < 3) return null;
