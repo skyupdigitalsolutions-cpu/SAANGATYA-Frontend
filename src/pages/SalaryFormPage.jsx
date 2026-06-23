@@ -1024,9 +1024,9 @@ export default function SalaryFormPage() {
       <div className="no-print bg-white px-4 md:px-8 py-3 flex items-center gap-4 shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-center flex-shrink-0 bg-white">
           <img
-            src="/SKYUP_Logo.png"
+            src="/image1.png"
             alt="Skyup Logo"
-            className="h-10 w-auto object-contain"
+            className="h-[50px] w-auto object-contain"
           />
         </div>
         <div className="flex-1" />
