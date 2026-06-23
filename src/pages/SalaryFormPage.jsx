@@ -48,7 +48,7 @@ const logout = async () => {
 };
 
 // ─── REAL BACKEND API ──────────────────────────────────────────────────────
-const API_BASE = import.meta.env.VITE_API_BASE || "";
+const API_BASE = "";
 
 async function fetchEmployee(id) {
   if (!id || id.trim().length < 3) return null;
@@ -534,26 +534,46 @@ export default function SalaryFormPage() {
       window.location.href = "/login";
       return;
     }
+    // Try to verify token with backend.
+    // If backend is unreachable (Render cold start / network error),
+    // trust the locally stored token and let the user stay logged in.
     fetch(`${API_BASE}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((res) => {
-        if (!res.ok) {
+        if (res.status === 401 || res.status === 403) {
+          // Token explicitly rejected — clear and redirect
           clearAuth();
           window.location.href = "/login";
-          return;
+          return null;
+        }
+        if (!res.ok) {
+          // Server error or backend sleeping — trust local token, let user in
+          const admin = getAdmin();
+          if (admin) setAdminInfo(admin);
+          setAuthChecked(true);
+          return null;
         }
         return res.json();
       })
       .then((data) => {
+        if (!data) return;
         if (data?.success) {
           setAdminInfo(data.admin);
+          setAuthChecked(true);
+        } else {
+          // Unexpected response — trust local token
+          const admin = getAdmin();
+          if (admin) setAdminInfo(admin);
           setAuthChecked(true);
         }
       })
       .catch(() => {
-        clearAuth();
-        window.location.href = "/login";
+        // Network error (backend sleeping on Render free tier) —
+        // do NOT clear auth. Trust the stored token.
+        const admin = getAdmin();
+        if (admin) setAdminInfo(admin);
+        setAuthChecked(true);
       });
   }, []);
 
