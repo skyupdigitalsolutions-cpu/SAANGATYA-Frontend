@@ -3,6 +3,7 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [react()],
+  // proxy is local-dev only — removed for production build
   server: {
     port: 5173,
     proxy: {

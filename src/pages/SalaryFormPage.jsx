@@ -48,7 +48,7 @@ const logout = async () => {
 };
 
 // ─── REAL BACKEND API ──────────────────────────────────────────────────────
-const API_BASE = "";
+const API_BASE = import.meta.env.VITE_API_BASE || "";
 
 async function fetchEmployee(id) {
   if (!id || id.trim().length < 3) return null;
@@ -990,9 +990,9 @@ export default function SalaryFormPage() {
       <div className="no-print bg-white px-4 md:px-8 py-3 flex items-center gap-4 shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-center flex-shrink-0 bg-white">
           <img
-            src="/image1.png"
+            src="/SKYUP_Logo.png"
             alt="Skyup Logo"
-            className="h-[60px] w-auto object-contain"
+            className="h-10 w-auto object-contain"
           />
         </div>
         <div className="flex-1" />
