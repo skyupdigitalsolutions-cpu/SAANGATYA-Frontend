@@ -56,13 +56,14 @@ async function fetchEmployee(id) {
     const res = await authFetch(
       `${API_BASE}/api/employees/${id.trim().toUpperCase()}`,
     );
-    if (!res || res.status === 404) return null;
-    if (!res.ok) throw new Error(`Server error ${res.status}`);
+    if (!res) return "error"; // network error / no response
+    if (res.status === 404) return null; // genuine not found
+    if (!res.ok) return "error"; // server error
     const json = await res.json();
     return json.success ? json.data : null;
   } catch (err) {
     console.error("[fetchEmployee]", err);
-    return null;
+    return "error"; // network error (backend sleeping)
   }
 }
 
@@ -106,9 +107,10 @@ async function checkEmployeeExists(id) {
     const res = await authFetch(
       `${API_BASE}/api/employees/${id.trim().toUpperCase()}`,
     );
-    return res && res.ok;
+    if (!res) return "error";
+    return res.ok; // true = exists, false = 404
   } catch {
-    return false;
+    return "error"; // network error
   }
 }
 
@@ -614,6 +616,11 @@ export default function SalaryFormPage() {
     let cancelled = false;
     fetchEmployee(id).then((emp) => {
       if (cancelled) return;
+      if (emp === "error") {
+        // Backend unreachable (Render sleeping) — don't mark as notfound
+        setFetchStatus("error");
+        return;
+      }
       if (emp) {
         Object.entries(emp).forEach(([k, v]) => {
           formik.setFieldValue(k, v, false);
@@ -668,9 +675,16 @@ export default function SalaryFormPage() {
       return;
     }
     checkEmployeeExists(id).then((exists) => {
-      if (exists) {
+      if (exists === "error") {
+        // Backend unreachable — can't verify, let user proceed with caution
         setNewEmpIdError(
-          "This ID already exists. Use it in the form to auto-fill.",
+          "⚠ Server is waking up. Could not verify ID — try again in a moment.",
+        );
+        return;
+      }
+      if (exists === true) {
+        setNewEmpIdError(
+          "This ID already exists. Close this and type it in the Employee ID field to auto-fill.",
         );
         return;
       }
@@ -973,7 +987,7 @@ export default function SalaryFormPage() {
     (Number(formik.values.travelAllowance) || 0);
   const ded = (Number(formik.values.lossOfPay) || 0) + (Number(formik.values.professionalTax) || 0);
   const net = Math.round(earn - ded);
-  const isUnknownId = fetchStatus === "notfound" && !isNewJoineeViaModal;
+  const isUnknownId = fetchStatus === "notfound" && !isNewJoineeViaModal;  // "error" status means backend sleeping, not genuinely unknown
 
   if (!authChecked) {
     return (
@@ -1010,9 +1024,9 @@ export default function SalaryFormPage() {
       <div className="no-print bg-white px-4 md:px-8 py-3 flex items-center gap-4 shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-center flex-shrink-0 bg-white">
           <img
-            src="/image1.png"
+            src="/SKYUP_Logo.png"
             alt="Skyup Logo"
-            className="h-[50px] w-auto object-contain"
+            className="h-10 w-auto object-contain"
           />
         </div>
         <div className="flex-1" />
@@ -1785,6 +1799,32 @@ export default function SalaryFormPage() {
                       <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4" />
                     </svg>
                     Fetching…
+                  </p>
+                )}
+                {fetchStatus === "error" && (
+                  <p className="text-orange-600 text-[10px] sm:text-xs mt-0.5 font-semibold flex items-center gap-1">
+                    ⚠ Server is waking up — &nbsp;
+                    <button
+                      type="button"
+                      className="underline font-bold"
+                      onClick={() => {
+                        const id = formik.values.employeeId?.trim();
+                        if (id && id.length >= 3) {
+                          setFetchStatus("loading");
+                          fetchEmployee(id).then((emp) => {
+                            if (emp === "error") { setFetchStatus("error"); return; }
+                            if (emp) {
+                              Object.entries(emp).forEach(([k, v]) => { formik.setFieldValue(k, v, false); formik.setFieldTouched(k, false, false); });
+                              setFetchStatus("found");
+                            } else {
+                              setFetchStatus("notfound");
+                            }
+                          });
+                        }
+                      }}
+                    >
+                      Retry
+                    </button>
                   </p>
                 )}
                 {fetchStatus === "found" && !isNewJoinee && !isEditMode && (
